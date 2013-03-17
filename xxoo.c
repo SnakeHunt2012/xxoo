@@ -102,7 +102,7 @@ void clean_code(char *ori_code, char *code)
 
 void scan_code(char *code, struct table *token_table)
 {
-    int i, line, v;
+    int i, j, line, v;
 
     i = 0;
     line = 0;
@@ -126,7 +126,6 @@ void scan_code(char *code, struct table *token_table)
 		v = 10 * v + (int)(code[i]) - 48;
 		i++;
 	    } while (isdigit(code[i]));
-	    printf("outer\n");
 	    token_table->tokens[token_table->length] = 
 		(struct token *)malloc(sizeof(struct token));
 	    token_table->tokens[token_table->length]->tag = 1;
@@ -136,7 +135,23 @@ void scan_code(char *code, struct table *token_table)
 	}
 	/* scan string */
 	else if (isalpha(code[i])) {
-	    i++;
+	    j = i;
+	    do {
+		j++;
+	    } while (isalpha(code[j]));
+	    
+	    token_table->tokens[token_table->length] = 
+		(struct token *)malloc(sizeof(struct token));
+	    token_table->tokens[token_table->length]->tag = 2;
+	    token_table->tokens[token_table->length]->value = 0;
+	    token_table->tokens[token_table->length]->str = 
+		(char *)malloc((j - i + 1) * sizeof(char));
+	    strncpy(token_table->tokens[token_table->length]->str,
+		   code + i, j - i);
+	    token_table->tokens[token_table->length]->str[j - i] = '\0';
+	    token_table->length++;
+
+	    i = j;
 	} else i++;
     }
 }
