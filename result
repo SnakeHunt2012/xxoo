@@ -1,0 +1,156 @@
+token[0]:
+	tag: 17
+	value: 0
+	str:#
+token[1]:
+	tag: 2
+	value: 0
+	str:include
+token[2]:
+	tag: 14
+	value: 0
+	str:<ÿÿÿ
+token[3]:
+	tag: 2
+	value: 0
+	str:stdio
+token[4]:
+	tag: 18
+	value: 0
+	str:.
+token[5]:
+	tag: 2
+	value: 0
+	str:h
+token[6]:
+	tag: 13
+	value: 0
+	str:>
+token[7]:
+	tag: 2
+	value: 0
+	str:main
+token[8]:
+	tag: 3
+	value: 0
+	str:(
+token[9]:
+	tag: 4
+	value: 0
+	str:)
+token[10]:
+	tag: 7
+	value: 0
+	str:{
+token[11]:
+	tag: -17
+	value: 0
+	str:int
+token[12]:
+	tag: 2
+	value: 0
+	str:i
+token[13]:
+	tag: 1
+	value: 0
+	str:(null)
+token[14]:
+	tag: 10
+	value: 0
+	str:;
+token[15]:
+	tag: -17
+	value: 0
+	str:int
+token[16]:
+	tag: 2
+	value: 0
+	str:j
+token[17]:
+	tag: 1
+	value: 1
+	str:(null)
+token[18]:
+	tag: 18
+	value: 0
+	str:.
+token[19]:
+	tag: 1
+	value: 2
+	str:(null)
+token[20]:
+	tag: 10
+	value: 0
+	str:;
+token[21]:
+	tag: -14
+	value: 0
+	str:for
+token[22]:
+	tag: 3
+	value: 0
+	str:(
+token[23]:
+	tag: 2
+	value: 0
+	str:i
+token[24]:
+	tag: 1
+	value: 0
+	str:(null)
+token[25]:
+	tag: 10
+	value: 0
+	str:;
+token[26]:
+	tag: 2
+	value: 0
+	str:i
+token[27]:
+	tag: 14
+	value: 0
+	str:<
+token[28]:
+	tag: 1
+	value: 10
+	str:(null)
+token[29]:
+	tag: 10
+	value: 0
+	str:;
+token[30]:
+	tag: 2
+	value: 0
+	str:i
+token[31]:
+	tag: 4
+	value: 0
+	str:)
+token[32]:
+	tag: 2
+	value: 0
+	str:i
+token[33]:
+	tag: 2
+	value: 0
+	str:i
+token[34]:
+	tag: 10
+	value: 0
+	str:;
+token[35]:
+	tag: -20
+	value: 0
+	str:return
+token[36]:
+	tag: 1
+	value: 0
+	str:(null)
+token[37]:
+	tag: 10
+	value: 0
+	str:;
+token[38]:
+	tag: 8
+	value: 0
+	str:}
