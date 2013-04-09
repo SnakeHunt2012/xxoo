@@ -1,111 +1,61 @@
 #include <stdio.h>
-#include <ctype.h>
 #include <stdlib.h>
-#include <string.h>
+#include "xxoo.h"
 
-#define MAX 1024 * 1024
+int code_load(FILE *, char*);
+int comment_remove(const char *, char *);
+int blank_remove(const char *, char *);
+int code_scan(const char *, struct token_table *, struct symbol_table *);
 
-/* 
- * auto: -1
- * break: -2
- * case: -3
- * char: -4
- * const: -5
- * continue: -6
- * default: -7
- * do: -8
- * double: -9
- * else: -10
- * enum: -11
- * extern: -12
- * float: -13
- * for: -14
- * goto: -15
- * if: -16
- * int: -17
- * long: -18
- * register: -19
- * return: -20
- * short: -21
- * signed: -22
- * sizeof: -23
- * static: -24
- * struct: -25
- * switeh: -26
- * typedef: -27
- * union: -28
- * unsigned: -29
- * void: -30
- * volatile: -31
- * while: -32
- * 
- * key: 0
- * dight: 1
- * string: 2
- * (: 3
- * ): 4
- * [: 5
- * ]: 6
- * {: 7
- * }: 8
- */
+int number_scan(const char *, int);
+int char_scan(const char *, int);
+int string_scan(const char *, int);
+int operator_scan(const char *, int);
+int symbol_scan(const char *, int);
+int identity_scan(const char *, int);
 
-struct token {
-    int tag;
-    int value;
-    char *str;
-};
-
-struct table {
-    int length;
-    struct token *tokens[MAX];
-};
+void number_load(const char *, int, int, struct token_table *, struct symbol_table *);
+void char_load(const char *, int, int, struct token_table *, struct symbol_table *);
+void string_load(const char *, int, int, struct token_table *, struct symbol_table *);
+void operator_load(const char *, int, int, struct token_table *, struct symbol_table *);
+void symbol_load(const char *, int, int, struct token_table *, struct symbol_table *);
+void identity_load(const char *, int, int, struct token_table *, struct symbol_table *);
 
 main(int argc, char *argv[])
 {
     FILE *fp;
     char *prog = argv[0];
-    char ori_code[MAX];
-    char code[MAX];
-    struct table token_table;
 
-    void load_code(FILE *, char *);
-    void clean_code(char *, char *);
-    void scan_code(char *, struct table *);
-    void scan_word(struct table *);
+    int ori_code_length;
+    int clean_code_length;
+    int tokens_length;
 
-    /* begin debug */
-    int i;
-    /* end debug */
-
-    token_table.length = 0;
     if (argc == 1)
-	fprintf(stderr, "%s: no input file\n", prog);
+	fprintf(stderr, "%s: no file input", prog);
     else
-	if ((fp = fopen(*++argv, "r")) == NULL) {
-	    fprintf(stderr, "%s: can't open %s\n", prog, *argv);
-	    exit(1);
-	} else {
-	    /* load code */
-	    load_code(fp, ori_code);
-	    fclose(fp);
-	    /* clean code */
-	    clean_code(ori_code, code);
-	    /* scan code */
-	    scan_code(code, &token_table);
-	    /* scan key word */
-	    scan_word(&token_table);
-
-	    /* begin debug */
-	    for (i = 0; i < token_table.length; ++i)
-		printf("token[%d]:\n\ttag: %d\n\tvalue: %d\n\tstr:%s\n",
-		       i,
-		       token_table.tokens[i]->tag,
-		       token_table.tokens[i]->value,
-		       token_table.tokens[i]->str);
-	    /* end debug */
-
-	}
+	while (--argc > 0)
+	    if ((fp = fopen(*++argv, "r")) == NULL) {
+		fprintf(stderr, "%s: can't open %s\n", prog, *argv);
+		exit(1);
+	    } else {
+		ori_code_length = code_load(fp, ori_code);
+		fclose(fp);
+		/*
+		fprintf(stdout, "code length: %d\ncode: %s\n the last word is: %c\n", 
+			code_length, ori_code, ori_code[code_length - 1]);
+		*/
+		clean_code_length = comment_remove(ori_code, buffer_one);
+		/* 
+		fprintf(stdout, "code length: %d\ncode: %s\n the last word is: %c\n",
+			clean_code_length, buffer_one, buffer_one[clean_code_length - 2]);
+		*/
+		clean_code_length = blank_remove(buffer_one, buffer_two);
+		/*
+		fprintf(stdout, "code       length: %d\ncode: %s\n the last word is: %c\n",
+			clean_code_length, buffer_two, buffer_two[clean_code_length - 2]);
+		*/
+		code_scan(buffer_two, &tokens, &symbols);
+	    }
     if (ferror(stdout)) {
 	fprintf(stderr, "%s: error writing stdout\n", prog);
 	exit(2);
@@ -113,356 +63,1116 @@ main(int argc, char *argv[])
     exit(0);
 }
 
-void load_code(FILE *ifp, char *ori_code)
+int code_load(FILE *fp, char *code)
 {
-    int c, i;
+    char c;
+    int i;
 
-    i = 0;
-    while ((c = getc(ifp)) != EOF)
-	ori_code[i++] = c;
-    ori_code[i] = '\0';
+    for (i = 0;(c = getc(fp)) != EOF; ++i)
+	code[i] = c;
+    code[i] = '\0';
+    return i;
 }
 
-void clean_code(char *ori_code, char *code)
+int comment_remove(const char *ori, char *code)
 {
-    int i, j;
+    int i, j, state;
 
     i = 0;
     j = 0;
-
-    while (ori_code[i] != '\0') {
-	/* remove comment */
-	if (ori_code[i] == '/' && ori_code[i + 1] == '*') {
-	    while (!(ori_code[i] == '*' && ori_code[i + 1] == '/'))
+    state = 0;
+    while (ori[i] != '\0')
+	switch (state) {
+	case 0:
+	    if (ori[i] == '/') {
+		state = 2;
 		i++;
+	    } else
+		state = 1;
+	    break;
+	case 1: 
+	    code[j++] = ori[i++];
+	    if (ori[i] == '/')
+		state = 2;
+	    break;
+	case 2:
+	    if (ori[++i] == '*')
+		state = 3;
+	    else
+		state = 1;
+	    break;
+	case 3:
+	    if (ori[++i] == '*')
+		state = 4;
+	    break;
+	case 4:
+	    if (ori[++i] == '/')
+		state = 5;
+	    else
+		state = 3;
+	    break;
+	case 5:
+	    i++;
 	    code[j++] = ' ';
-	    i += 2;
+	    state = 1;
+	    break;
 	}
-	code[j++] = ori_code[i++];
-    }
     code[j] = '\0';
+    return j;
 }
 
-void scan_code(char *code, struct table *token_table)
+int blank_remove(const char *ori, char *code)
 {
-    int i, j, line, v;
+    int i, j, state;
 
     i = 0;
-    line = 0;
-    while (code[i]) {
-	/* ignore blank character */
-	while (code[i]) {
-	    if (code[i] == ' ' || code[i] == '\t') {
-		i++;
-		continue;
-	    } else if (code[i] == '\n') {
-		i++;
-		line++;
-	    }
+    j = 0;
+    state = 0;
+    while (ori[i] != '\0')
+	switch (state) {
+	case 0:
+	    if (ori[i] == ' ' ||
+		ori[i] == '\t' ||
+		ori[i] == '\n' ||
+		ori[i] == '\r')
+		state = 2;
+	    else if (ori[i] == '"')
+		state = 3;
 	    else
-		break;
+		state = 1;
+	    break;
+	case 1:
+	    code[j++] = ori[i++];
+	    if (ori[i] == ' ' ||
+		ori[i] == '\t' ||
+		ori[i] == '\n' ||
+		ori[i] == '\r')
+		state = 2;
+	    else if (ori[i] == '"')
+		state = 3;
+	    else
+		state = 1;
+	    break;
+	case 2:
+	    i++;
+	    if (!(ori[i] == ' ' ||
+		  ori[i] == '\t' ||
+		  ori[i] == '\n' ||
+		  ori[i] == '\r'))
+		if (ori[i] == '"') {
+		    code[j++] = ' ';
+		    state = 3;
+		}
+		else {
+		    code[j++] = ' ';
+		    state = 1;
+		}
+	    break;
+	case 3:
+	    code[j++] = ori[i++];
+	    if (ori[i] == '"')
+		state = 1;
 	}
-	/* scan number */
-	if (isdigit(code[i])) {
-	    v = 0;
-	    do {
-		v = 10 * v + (int)(code[i]) - 48;
-		i++;
-	    } while (isdigit(code[i]));
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 1;
-	    token_table->tokens[token_table->length]->value = v;
-	    token_table->tokens[token_table->length]->str = NULL;
-	    token_table->length++;
-	}
-	/* scan string */
-	else if (isalpha(code[i])) {
-	    j = i;
-	    do {
-		j++;
-	    } while (isalpha(code[j]));
-	    
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 2;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc((j - i + 1) * sizeof(char));
-	    strncpy(token_table->tokens[token_table->length]->str,
-		   code + i, j - i);
-	    token_table->tokens[token_table->length]->str[j - i] = '\0';
-	    token_table->length++;
-
-	    i = j;
-	} else if (code[i] == '(') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 3;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '(';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == ')') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 4;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = ')';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '[') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 5;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '[';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == ']') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 6;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = ']';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '{') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 7;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '{';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '}') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 8;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '}';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == ',') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 9;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = ',';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == ';') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 10;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = ';';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '-') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 11;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '-';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '"') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 12;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '"';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '>') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 13;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '>';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '<') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 14;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '<';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '!') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 15;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '!';
-	    token_table->length++;
-	    i++;
-        } else if (code[i] == ':') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 16;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = ':';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '#') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 17;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '#';
-	    token_table->length++;
-	    i++;
-	} else if (code[i] == '.') {
-	    token_table->tokens[token_table->length] = 
-		(struct token *)malloc(sizeof(struct token));
-	    token_table->tokens[token_table->length]->tag = 18;
-	    token_table->tokens[token_table->length]->value = 0;
-	    token_table->tokens[token_table->length]->str = 
-		(char *)malloc(sizeof(char));
-	    token_table->tokens[token_table->length]->str[0] = '.';
-	    token_table->length++;
-	    i++;
-	} else {
-	    i++;
-	}
-    }
+    code[j] = '\0';
+    return j;
 }
 
-/* 
- * auto: -1
- * break: -2
- * case: -3
- * char: -4
- * const: -5
- * continue: -6
- * default: -7
- * do: -8
- * double: -9
- * else: -10
- * enum: -11
- * extern: -12
- * float: -13
- * for: -14
- * goto: -15
- * if: -16
- * int: -17
- * long: -18
- * register: -19
- * return: -20
- * short: -21
- * signed: -22
- * sizeof: -23
- * static: -24
- * struct: -25
- * switeh: -26
- * typedef: -27
- * union: -28
- * unsigned: -29
- * void: -30
- * volatile: -31
- * while: -32
- */
-void scan_word(struct table *token_table)
+int code_scan(const char *code, struct token_table *tokens, struct symbol_table *symbols)
+{
+    int i, begin, vote[6], len, index;
+
+    begin = 0;
+    tokens->length = 0;
+    do {
+	len = 0;
+	index = 0;
+	vote[0] = number_scan(code, begin);
+	vote[1] = char_scan(code, begin);
+	vote[2] = string_scan(code, begin);
+	vote[3] = operator_scan(code, begin);
+	vote[4] = symbol_scan(code, begin);
+	vote[5] = identity_scan(code, begin);
+	for (i = 0; i < 6; ++i)
+	    if (vote[i]) {
+		index = i;
+		len = vote[i];
+	    }
+	/*
+	fprintf(stderr, "this word is: %d\tlen: %d\tcode[%d]:%c\n\n", index, len, begin, code[begin]);
+	*/
+	switch (index) {
+	case 0:
+	    /* is number */
+	    number_load(code, begin, len, tokens, symbols);
+	    break;
+	case 1:
+	    /* is char */
+	    char_load(code, begin, len, tokens, symbols);
+	    break;
+	case 2:
+	    /* is string */
+	    string_load(code, begin, len, tokens, symbols);
+	    break;
+	case 3:
+	    /* is operator */
+	    operator_load(code, begin, len, tokens, symbols);
+	    break;
+	case 4:
+	    /* is symbol */
+	    symbol_load(code, begin, len, tokens, symbols);
+	    break;
+	case 5:
+	    /* is identity */
+	    identity_load(code, begin, len, tokens, symbols);
+	    break;
+	}
+	begin += len;
+    } while (code[begin] != '\0');
+    /*
+	vote[0] = number_scan(code, 0);
+	vote[1] = char_scan(code, 0);
+	vote[2] = string_scan(code, 0);
+	vote[3] = operator_scan(code, 0);
+	vote[4] = symbol_scan(code, 0);
+	vote[5] = identity_scan(code, 0);
+	fprintf(stderr, "number:\t%d\nchar:\t%d\nstring:\t%d\noperator:\t%d\nsymbol:\t%d\nidentity:\t%d\n",
+	   vote[0],
+	   vote[1],
+	   vote[2],
+	   vote[3],
+	   vote[4],
+	   vote[5]);
+    */
+    fprintf(stderr, "tokens->length: %d\n", tokens->length);
+    for (i = 0; i < tokens->length; ++i)
+	if (tokens->table[i]->tag == 1)
+	    fprintf(stderr, "code_scan: number - tokens->table[%d] = %f\n", i, tokens->table[i]->value);
+	else if (tokens->table[i]->tag == 2)
+	    fprintf(stderr, "code_scan: char - tokens->table[%d] = %c\n", i, *(tokens->table[i]->pointer));
+	else if (tokens->table[i]->tag == 3)
+	    fprintf(stderr, "code_scan: string - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
+	else if (tokens->table[i]->tag == 4)
+	    fprintf(stderr, "code_scan: operator - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
+	else if (tokens->table[i]->tag == 5)
+	    fprintf(stderr, "code_scan: symbol - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
+	else if (tokens->table[i]->tag == 6)
+	    fprintf(stderr, "code_scan: identity - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
+    return tokens->length;
+}
+
+int number_scan(const char *code, int begin)
+{
+    int front, state;
+
+    front = begin;
+    if (code[front] == '+' || code[front] == '-')
+	/* is +/- */
+	state = 1;
+    else if (code[front] == '0' ||
+	     code[front] == '1' ||
+	     code[front] == '2' ||
+	     code[front] == '3' ||
+	     code[front] == '4' ||
+	     code[front] == '5' ||
+	     code[front] == '6' ||
+	     code[front] == '7' ||
+	     code[front] == '8' ||
+	     code[front] == '9')
+	/* is digit */
+	state = 2;
+     else
+	/* pattern dosen't match */
+	state = 0;
+    do {
+	switch (state) {
+	case 0:
+	    return 0;
+	    break;
+	case 1:
+	    front++;
+	    if (code[front] == '0' ||
+		code[front] == '1' ||
+		code[front] == '2' ||
+		code[front] == '3' ||
+		code[front] == '4' ||
+		code[front] == '5' ||
+		code[front] == '6' ||
+		code[front] == '7' ||
+		code[front] == '8' ||
+		code[front] == '9')
+		state = 2;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\n' ||
+		     code[front] == '\t' ||
+		     code[front] == '\r')
+		state = 1;
+	    else
+		state = 0;
+	    break;
+	case 2:
+	    front++;
+	    if (code[front] == '0' ||
+		code[front] == '1' ||
+		code[front] == '2' ||
+		code[front] == '3' ||
+		code[front] == '4' ||
+		code[front] == '5' ||
+		code[front] == '6' ||
+		code[front] == '7' ||
+		code[front] == '8' ||
+		code[front] == '9')
+		state = 2;
+	    else if (code[front] == '.')
+		state = 3;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\n' ||
+		     code[front] == '\t' ||
+		     code[front] == '\r')
+		state = 2;
+	    else
+		state = 0;
+	    break;
+	case 3:
+	    front++;
+	    if (code[front] == '0' ||
+		code[front] == '1' ||
+		code[front] == '2' ||
+		code[front] == '3' ||
+		code[front] == '4' ||
+		code[front] == '5' ||
+		code[front] == '6' ||
+		code[front] == '7' ||
+		code[front] == '8' ||
+		code[front] == '9')
+		state = 4;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\n' ||
+		     code[front] == '\t' ||
+		     code[front] == '\r')
+		state = 3;
+	    else
+		state = 0;
+	    break;
+	case 4:
+	    front++;
+	    if (code[front] == '0' ||
+		code[front] == '1' ||
+		code[front] == '2' ||
+		code[front] == '3' ||
+		code[front] == '4' ||
+		code[front] == '5' ||
+		code[front] == '6' ||
+		code[front] == '7' ||
+		code[front] == '8' ||
+		code[front] == '9')
+		state = 4;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\n' ||
+		     code[front] == '\t' ||
+		     code[front] == '\r')
+		state = 4;
+	    else
+		state = 0;
+	    break; 
+	}
+    } while (code[front] != ' '  &&
+	     code[front] != '\n' &&
+	     code[front] != '\t' &&
+	     code[front] != '\r');
+    if (state == 2 || state == 4)
+	return front - begin + 1;
+    else
+	return 0;
+}
+
+int char_scan(const char *code, int begin)
+{
+    int front, state;
+
+    front = begin;
+    if (code[front] == '\'')
+	state = 1;
+    else
+	state = 0;
+    do {
+	switch (state) {
+	case 0:
+	    return 0;
+	    break;
+	case 1:
+	    front++; 
+	    if (code[front] == '\'')
+		state = 3;
+	    else if ((code[front] <= 126 &&
+		      code[front] >= 33) ||
+		     code[front] == ' ')
+		state = 2;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 1;
+	    else
+		state = 0;
+	    break;
+	case 2:
+	    front++;
+	    if (code[front] == '\'')
+		state = 3;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 2;
+	    else
+		state = 0;
+	    break;
+	case 3:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 3;
+	    else
+		state = 0;
+	}
+    } while (code[front] != ' ' &&
+	     code[front] != '\t' &&
+	     code[front] != '\n' &&
+	     code[front] != '\r');
+    if (state == 3)
+	return front - begin + 1; 
+    else
+	return 0;
+}
+
+int string_scan(const char *code, int begin)
+{
+    int front, state, inside;
+
+    front = begin;
+    inside = 0;
+    if (code[front] == '"')
+	state = 1;
+    else
+	state = 0;
+    do {
+	switch (state) {
+	case 0:
+	    return 0;
+	    break;
+	case 1:
+	    front++; 
+	    inside = 1;
+	    if (code[front] == '"')
+		state = 2;
+	    else
+		state = 1;
+	    break;
+	case 2:
+	    front++;
+	    inside = 0;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 2;
+	    else
+		state = 0;
+	    break;
+	}
+    } while ((code[front] != ' ' &&
+	     code[front] != '\t' &&
+	     code[front] != '\n' &&
+	      code[front] != '\r') ||
+	     inside == 1);
+    if (state == 2)
+	return front - begin + 1; 
+    else
+	return 0;
+}
+
+int operator_scan(const char *code, int begin)
+{
+    int front, state;
+
+    front = begin;
+    switch (code[front]) {
+    case '~':
+	state = 1;
+	break;
+    case '*':
+	state = 2;
+	break;
+    case '/':
+	state = 4;
+	break;
+    case '%':
+	state = 6;
+	break;
+    case '=':
+	state = 8;
+	break;
+    case '!':
+	state = 10;
+	break;
+    case '^':
+	state = 12;
+	break;
+    case '+':
+	state = 14;
+	break;
+    case '-':
+	state = 17;
+	break;
+    case '&':
+	state = 20;
+	break;
+    case '|':
+	state = 23;
+	break;
+    case '<':
+	state = 26;
+	break;
+    case '>':
+	state = 30;
+	break;
+    default:
+	state = 0;
+	break;
+    }
+    do {
+	switch (state) {
+	case 0:
+	    return 0;
+	    break;
+	case 1:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 1; 
+	    else state = 0;
+	    break;
+	case 2:
+	    front++;
+	    if (code[front] == '=')
+		state = 3;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 2;
+	    else
+		state = 0;
+	    break;
+	case 3:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 3;
+	    else state = 0;
+	    break;
+	case 4:
+	    front++;
+	    if (code[front] == '=')
+		state = 5;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 4;
+	    else
+		state = 0;
+	    break;
+	case 5:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 5;
+	    else
+		state = 0;
+	    break;
+	case 6:
+	    front++;
+	    if (code[front] == '=')
+		state = 7;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 6;
+	    else 
+		state = 0;
+	    break;
+	case 7:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 7;
+	    else
+		state = 0;
+	    break;
+	case 8:
+	    front++;
+	    if (code[front] == '=')
+		state = 9;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 9;
+	    else
+		state = 0;
+	    break;
+	case 9:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 9;
+	    else
+		state = 0;
+	    break;
+	case 10:
+	    front++;
+	    if (code[front] == '=')
+		state = 11;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 10;
+	    else
+		state = 0;
+	    break;
+	case 11:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 11;
+	    else
+		state = 0;
+	    break;
+	case 12:
+	    front++;
+	    if (code[front] == '=')
+		state = 13;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 12;
+	    else
+		state = 0;
+	    break;
+	case 13:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 13;
+	    else
+		state = 0;
+	    break;
+	case 14:
+	    front++;
+	    if (code[front] == '+')
+		state = 15;
+	    else if (code[front] == '=')
+		state = 16;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 14;
+	    else
+		state = 0;
+	    break;
+	case 15:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 15;
+	    else 
+		state = 0;
+	    break;
+	case 16:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 16;
+	    else
+		state = 0;
+	    break;
+	case 17:
+	    front++;
+	    if (code[front] == '-')
+		state = 18;
+	    else if (code[front] == '=')
+		state = 19;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 17;
+	    else
+		state = 0;
+	    break;
+	case 18:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 18;
+	    else 
+		state = 0;
+	    break;
+	case 19:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 19;
+	    else 
+		state = 0;
+	    break;
+	case 20:
+	    front++;
+	    if (code[front] == '&')
+		state = 21;
+	    else if (code[front] == '=')
+		state = 22;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 20;
+	    else
+		state = 0;
+	    break;
+	case 21:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 21;
+	    else 
+		state = 0;
+	    break;
+	case 22:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 22;
+	    else
+		state = 0;
+	    break;
+	case 23:
+	    front++;
+	    if(code[front] == '|')
+		state = 24;
+	    else if (code[front] == '=')
+		state = 25;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 23;
+	    else
+		state = 0;
+	    break;
+	case 24:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 24;
+	    else
+		state = 0;
+	    break;
+	case 25:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 25;
+	    else
+		state = 0;
+	    break;
+	case 26:
+	    front++;
+	    if (code[front] == '<')
+		state = 27;
+	    else if (code[front] == '=')
+		state = 29;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 26;
+	    else
+		state = 0;
+	    break;
+	case 27:
+	    front++;
+	    if (code[front] == '=')
+		state = 28;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 27;
+	    else
+		state = 0;
+	    break;
+	case 28:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 28;
+	    else
+		state = 0;
+	    break;
+	case 29:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 29;
+	    else
+		state = 0;
+	    break;
+	case 30:
+	    front++;
+	    if (code[front] == '>')
+		state = 31;
+	    else if (code[front] == '=')
+		state = 33;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 30;
+	    else
+		state = 0;
+	    break;
+	case 31:
+	    front++;
+	    if (code[front] == '=')
+		state = 32;
+	    else if (code[front] == ' ' ||
+		     code[front] == '\t' ||
+		     code[front] == '\n' ||
+		     code[front] == '\r')
+		state = 31;
+	    else
+		state = 0;
+	    break;
+	case 32:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 32;
+	    else
+		state = 0;
+	    break;
+	case 33:
+	    front++;
+	    if (code[front] == ' ' ||
+		code[front] == '\t' ||
+		code[front] == '\n' ||
+		code[front] == '\r')
+		state = 33;
+	    else
+		state = 0;
+	    break;
+	}
+    } while (code[front] != ' '  &&
+	     code[front] != '\n' &&
+	     code[front] != '\t' &&
+	     code[front] != '\r');
+    if (state == 1 ||
+	state == 2 ||
+	state == 3 ||
+	state == 4 ||
+	state == 5 ||
+	state == 6 ||
+	state == 7 ||
+	state == 8 ||
+	state == 9 ||
+	state == 11 ||
+	state == 13 ||
+	state == 14 ||
+	state == 15 ||
+	state == 16 ||
+	state == 17 ||
+	state == 18 ||
+	state == 19 ||
+	state == 20 ||
+	state == 21 ||
+	state == 22 ||
+	state == 23 ||
+	state == 24 ||
+	state == 25 ||
+	state == 26 ||
+	state == 27 ||
+	state == 28 ||
+	state == 29 ||
+	state == 30 ||
+	state == 31 ||
+	state == 32 ||
+	state == 33)
+	return front - begin + 1; 
+    else
+	return 0;
+}
+
+int symbol_scan(const char *code, int begin)
+{
+    int front, state;
+    
+    front = begin;
+    switch (code[front]) {
+    case '(':
+	state = 1;
+	break;
+    case ')':
+	state = 2;
+	break;
+    case '[':
+	state = 3;
+	break;
+    case ']':
+	state = 4;
+	break;
+    case '{':
+	state = 5;
+	break;
+    case '}':
+	state = 6;
+	break;
+    case ':':
+	state = 7;
+	break;
+    case ';':
+	state = 8;
+	break;
+    case ',':
+	state = 9;
+	break;
+    case '?':
+	state = 10;
+	break;
+    default:
+	return 0;
+	state = 0;
+	break;
+    }
+    front++;
+    if (code[front] == ' ' ||
+	code[front] == '\t' ||
+	code[front] == '\n' ||
+	code[front] == '\r')
+	return front - begin + 1; 
+    else
+	return 0;
+}
+
+int identity_scan(const char *code, int begin)
+{
+    int front, state;
+
+    front = begin;
+    if ((code[front] <= 90 && code[front] >= 65) ||
+	(code[front] <= 122 && code[front] >= 97))
+	state = 1;
+    else
+	state = 0;
+    do {
+	switch (state) {
+	case 0:
+	    return 0;
+	    break;
+	case 1:
+	    front++;
+	    if ((code[front] <= 90 && code[front] >= 65) ||
+		(code[front] <= 122 && code[front] >= 97) ||
+		(code[front] <= 57 && code[front] >= 48))
+		state = 1;
+	    break;
+	}
+    } while (code[front] != ' ' &&
+	     code[front] != '\t' &&
+	     code[front] != '\n' &&
+	     code[front] != '\r');
+    if (state == 1)
+	return front - begin + 1; 
+    else 
+	return 0;
+}
+
+
+void number_load(const char *code, int begin, int len, 
+		 struct token_table *tokens, 
+		 struct symbol_table *symbols)
+{
+    int i, state, front;
+    double v, step;
+
+    if (len <= 2)
+	fprintf(stderr, "number_load: len is less than 2: %d\n", len);
+    v = 0;
+    step = 0.1;
+    state = 0;
+    front = begin;
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    for (i = 0; i < len - 1; ++i)
+	switch (state) {
+	case 0:
+	    v = v * 10 + (code[front] - 48);
+	    front++;
+	    if (code[front] == '.')
+		state = 1;
+	    break;
+	case 1:
+	    if (code[front] == '.') {
+		front++;
+		break;
+	    } else {
+		v += step * (code[front] - 48);
+		step *= 0.1;
+		front++;
+		break;
+	    }
+	}
+    tokens->table[tokens->length]->value = v;
+    tokens->table[tokens->length]->tag = 1;
+    tokens->table[tokens->length]->pointer = NULL;
+    tokens->length++;
+}
+
+void char_load(const char *code, int begin, int len, 
+	       struct token_table *tokens, 
+	       struct symbol_table *symbols)
+{
+    if (len != 4)
+	fprintf(stderr, "char_load: len is not 3: %d\n", len - 1);
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    tokens->table[tokens->length]->value = 0;
+    tokens->table[tokens->length]->tag = 2;
+    tokens->table[tokens->length]->pointer = 
+	(char *)malloc(sizeof(char));
+    *(tokens->table[tokens->length]->pointer) = code[begin + 1];
+    tokens->length++;
+}
+
+void string_load(const char *code, int begin, int len,
+		 struct token_table *tokens,
+		 struct symbol_table *symbols)
 {
     int i;
 
-    for (i = 0; i < token_table->length; ++i)
-	if (token_table->tokens[i]->tag == 2)
-	    if (!strcmp(token_table->tokens[i]->str, "auto"))
-		token_table->tokens[i]->tag = -1;
-	    else if (!strcmp(token_table->tokens[i]->str, "break"))
-		token_table->tokens[i]->tag = -2;
-	    else if (!strcmp(token_table->tokens[i]->str, "case"))
-		token_table->tokens[i]->tag = -3;
-	    else if (!strcmp(token_table->tokens[i]->str, "char"))
-		token_table->tokens[i]->tag = -4;
-	    else if (!strcmp(token_table->tokens[i]->str, "const"))
-		token_table->tokens[i]->tag = -5;
-	    else if (!strcmp(token_table->tokens[i]->str, "continue"))
-		token_table->tokens[i]->tag = -6;
-	    else if (!strcmp(token_table->tokens[i]->str, "default"))
-		token_table->tokens[i]->tag = -7;
-	    else if (!strcmp(token_table->tokens[i]->str, "do"))
-		token_table->tokens[i]->tag = -8;
-	    else if (!strcmp(token_table->tokens[i]->str, "double"))
-		token_table->tokens[i]->tag = -9;
-	    else if (!strcmp(token_table->tokens[i]->str, "else"))
-		token_table->tokens[i]->tag = -10;
-	    else if (!strcmp(token_table->tokens[i]->str, "enum"))
-		token_table->tokens[i]->tag = -11;
-	    else if (!strcmp(token_table->tokens[i]->str, "extern"))
-		token_table->tokens[i]->tag = -12;
-	    else if (!strcmp(token_table->tokens[i]->str, "float"))
-		token_table->tokens[i]->tag = -13;
-	    else if (!strcmp(token_table->tokens[i]->str, "for"))
-		token_table->tokens[i]->tag = -14;
-	    else if (!strcmp(token_table->tokens[i]->str, "goto"))
-		token_table->tokens[i]->tag = -15;
-	    else if (!strcmp(token_table->tokens[i]->str, "if"))
-		token_table->tokens[i]->tag = -16;
-	    else if (!strcmp(token_table->tokens[i]->str, "int"))
-		token_table->tokens[i]->tag = -17;
-	    else if (!strcmp(token_table->tokens[i]->str, "long"))
-		token_table->tokens[i]->tag = -18;
-	    else if (!strcmp(token_table->tokens[i]->str, "register"))
-		token_table->tokens[i]->tag = -19;
-	    else if (!strcmp(token_table->tokens[i]->str, "return"))
-		token_table->tokens[i]->tag = -20;
-	    else if (!strcmp(token_table->tokens[i]->str, "short"))
-		token_table->tokens[i]->tag = -21;
-	    else if (!strcmp(token_table->tokens[i]->str, "signed"))
-		token_table->tokens[i]->tag = -22;
-	    else if (!strcmp(token_table->tokens[i]->str, "sizeof"))
-		token_table->tokens[i]->tag = -23;
-	    else if (!strcmp(token_table->tokens[i]->str, "static"))
-		token_table->tokens[i]->tag = -24;
-	    else if (!strcmp(token_table->tokens[i]->str, "struct"))
-		token_table->tokens[i]->tag = -25;
-	    else if (!strcmp(token_table->tokens[i]->str, "switch"))
-		token_table->tokens[i]->tag = -26;
-	    else if (!strcmp(token_table->tokens[i]->str, "typedef"))
-		token_table->tokens[i]->tag = -25;
-	    else if (!strcmp(token_table->tokens[i]->str, "union"))
-		token_table->tokens[i]->tag = -26;
-	    else if (!strcmp(token_table->tokens[i]->str, "unsigned"))
-		token_table->tokens[i]->tag = -27;
-	    else if (!strcmp(token_table->tokens[i]->str, "void"))
-		token_table->tokens[i]->tag = -28;
-	    else if (!strcmp(token_table->tokens[i]->str, "volatile"))
-		token_table->tokens[i]->tag = -29;
-	    else if (!strcmp(token_table->tokens[i]->str, "while"))
-		token_table->tokens[i]->tag = -30;
+    if (len <= 3)
+	fprintf(stderr, "string_load: len is less than 2: %d\n", len - 1);
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    tokens->table[tokens->length]->value = 0;
+    tokens->table[tokens->length]->tag = 3;
+    tokens->table[tokens->length]->pointer = 
+	(char *)malloc(sizeof(char) * len);
+    for (i = 0; i < len - 1; ++i)
+	*(tokens->table[tokens->length]->pointer + i) = code[begin + i];
+    *(tokens->table[tokens->length]->pointer + i) = '\0';
+    tokens->length++;
+}
+
+void operator_load(const char *code, int begin, int len,
+		   struct token_table *tokens,
+		   struct symbol_table *symbols)
+{
+    int i;
+
+    if (len < 2)
+	fprintf(stderr, "operator_load: len is less than 1: %d\n", len - 1);
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    tokens->table[tokens->length]->tag = 4;
+    tokens->table[tokens->length]->value = 0;
+    tokens->table[tokens->length]->pointer = 
+	(char *)malloc(sizeof(char) * len);
+    for (i = 0; i < len - 1; ++i)
+	*(tokens->table[tokens->length]->pointer + i) = code[begin + i];
+    *(tokens->table[tokens->length]->pointer + i) = '\0';
+    tokens->length++;
+}
+
+void symbol_load(const char *code, int begin, int len, 
+		 struct token_table *tokens,
+		 struct symbol_table *symbols)
+{
+    int i;
+
+    if (len != 2)
+	fprintf(stderr, "symbol_load: len is not 1: %d\n", len - 1);
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    tokens->table[tokens->length]->tag = 5;
+    tokens->table[tokens->length]->value = 0;
+    tokens->table[tokens->length]->pointer = 
+	(char *)malloc(sizeof(char) * len);
+    for (i = 0; i < len - 1; ++i)
+	*(tokens->table[tokens->length]->pointer + i) = code[begin + i];
+    *(tokens->table[tokens->length]->pointer + i) = '\0';
+    tokens->length++;
+}
+
+void identity_load(const char *code, int begin, int len, 
+		   struct token_table *tokens,
+		   struct symbol_table *symbols)
+{
+    int i;
+
+    if (len < 2)
+	fprintf(stderr, "identity_load: len is less than 1: %d\n", len - 1);
+    tokens->table[tokens->length] = 
+	(struct token *)malloc(sizeof(struct token));
+    tokens->table[tokens->length]->tag = 6;
+    tokens->table[tokens->length]->value = 0;
+    tokens->table[tokens->length]->pointer = 
+	(char *)malloc(sizeof(char) * len);
+    for (i = 0; i < len - 1; ++i)
+	*(tokens->table[tokens->length]->pointer + i) = code[begin + i];
+    *(tokens->table[tokens->length]->pointer + i) = '\0';
+    tokens->length++;
 }
