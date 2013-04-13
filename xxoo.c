@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "xxoo.h"
 #include "lex/lex.h"
 #include "parse/parse.h"
 

@@ -1,8 +1,4 @@
-#
-#include <stdio.h>
-#include <stdlib.h>
-
-#define MAX 1024 * 1024
+#include "../xxoo.h"
 
 struct symbol {
     char *token;

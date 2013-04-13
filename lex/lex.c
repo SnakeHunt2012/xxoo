@@ -180,6 +180,7 @@ int code_scan(const char *code, struct token_table *tokens, struct symbol_table 
 	   vote[4],
 	   vote[5]);
     */
+    /*
     fprintf(stderr, "tokens->length: %d\n", tokens->length);
     for (i = 0; i < tokens->length; ++i)
 	if (tokens->table[i]->tag == 1)
@@ -194,6 +195,7 @@ int code_scan(const char *code, struct token_table *tokens, struct symbol_table 
 	    fprintf(stderr, "code_scan: symbol - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
 	else if (tokens->table[i]->tag == 6)
 	    fprintf(stderr, "code_scan: identity - tokens->table[%d] = %s\n", i, tokens->table[i]->pointer);
+    */
     return tokens->length;
 }
 

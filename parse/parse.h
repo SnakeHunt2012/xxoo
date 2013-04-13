@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "../xxoo.h"
 
 /* grammar_table::语法表（结构体）
  * - struct grammar_symbol *symbol::初始符号：语法符号结构体指针
@@ -77,4 +75,21 @@ struct grammar_symbol {
     char *value;
 };
 
+char parse_code[MAX];
+unsigned int parse_code_len;
+grammar_table *grammars;
+grammar_symbol_table *grammar_symbols;
+
 void parse(FILE *);
+unsigned int parse_read(FILE *, char *);
+grammar_table *parse_scan(const char *);
+grammar_table *grammar_table_create();
+grammar_symbol_table *grammar_symbol_table_create();
+int grammar_define_read(const char *, register int, grammar_table *, grammar_symbol_table *);
+int grammar_generator_read(const char *, register int, grammar_table *, grammar_symbol_table *);
+int grammar_define_install(const char *, register int, grammar_symbol_table *);
+int grammar_generator_install(const char *, register int, grammar_symbol_table *, grammar_table *);
+
+int symbol_recognise(const char *, register int);
+
+char *code_strcpy(const char *, register int, register int);
