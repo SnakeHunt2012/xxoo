@@ -83,18 +83,23 @@ grammar_symbol_table *grammar_symbols;
 void parse(FILE *);
 unsigned int parse_read(FILE *, char *);
 grammar_table *parse_scan(const char *);
+int skip_blank(const char *, register int);
 
 int grammar_define_read(const char *, register int, grammar_table *, grammar_symbol_table *);
 int grammar_generator_read(const char *, register int, grammar_table *, grammar_symbol_table *);
 
 int grammar_define_install(const char *, register int, grammar_symbol_table *);
-int grammar_generator_install(const char *, register int, grammar_symbol_table *, grammar_table *);
+void left_generator_install(generator *, grammar_symbol *); /* undefined */
+void generator_install(generator *, grammar_table *);
 
 int symbol_recognise(const char *, register int);
 char *code_strcpy(const char *, register int, register int);
+grammar_symbol *symbol_find(const char *, register int, register int, grammar_symbol_table *);
+int symbol_match(const char *, register int, register int, const char *);
 
 grammar_table *grammar_table_create();
 grammar_symbol_table *grammar_symbol_table_create();
 grammar_symbol *grammar_symbol_create();
+generator *grammar_generator_create();
 
 grammar_symbol *grammar_symbol_install(char *, unsigned int, grammar_symbol_table *);
