@@ -6,7 +6,7 @@ void parse(FILE *fp)
     extern char parse_code[];
 
     parse_code_len = parse_read(fp, parse_code);
-    /* debug
+    /* debug: whether can read grammar file into code[]
     printf("parse code:\n%s\n", parse_code);
     */
     grammars = parse_scan(parse_code);
@@ -31,23 +31,32 @@ grammar_table *parse_scan(const char *code)
     extern grammar_table *grammars;
     extern grammar_symbol_table *grammar_symbols;
 
+    /* debug print all defines and rules */
+    grammar_symbol *ptr1;
+    generator *ptr2;
+    right_generator *ptr3;
+    generator_symbol *ptr4;
+    /* debug print all defines and rules */
+    
+
     grammars = grammar_table_create();
-    /* debug
+
+    /* debug: whether can create grammar_table
     fprintf(stderr, "grammars->len:\t%d\n", grammars->len);
     */
+
     grammar_symbols = grammar_symbol_table_create();
-    /* debug
+
+    /* debug: whether can create grammar_symbol_table
     fprintf(stderr, "grammar_symbols->len:\t%d\n", grammar_symbols->len);
     */
     
     /* point to the first character */
     i = 0;
+
     /* skip blank characters before grammar define */
-    while (code[i] == ' ' |
-	   code[i] == '\t' |
-	   code[i] == '\n' |
-	   code[i] == '\r')
-	++i;
+    i = skip_blank(code, i);
+
     /* read grammar symbol define */
     if (code[i] == '%' && code[i + 1] == '{') {
 	i += 2;
@@ -59,13 +68,16 @@ grammar_table *parse_scan(const char *code)
     }
 
     /* skip blank characters before grammar rules */
-    while (code[i] == ' ' |
-	   code[i] == '\t' |
-	   code[i] == '\n' |
-	   code[i] == '\r')
-	++i;
-    /* debug
+    i = skip_blank(code, i);
+
+    /* debug: whether the begin of grammar define section
     fprintf(stderr, "parse_scan: current character %c, next is %c\n", code[i], code[i + 1]); */
+
+    /* debug begin: print all defines */
+    fprintf(stderr, "parse_scan: gramamr_symbols->len is %d\n", grammar_symbols->len);
+    for (ptr1 = grammar_symbols->first; ptr1 != NULL; ptr1 = ptr1->next)
+	fprintf(stderr, "parse_scan: ptr1->value is %s, type is %d\n", ptr1->value, ptr1->type);
+    /* debug begin: print all defines */    
 
     /* begin with %{ */
     if (code[i] == '%' && code[i + 1] == '{') {
@@ -81,9 +93,6 @@ grammar_table *parse_scan(const char *code)
     while (code[i] == '<')
 	i = grammar_generator_read(code, i, grammars, grammar_symbols);
 
-    /* debug: display all rules in grammars */
-    /* debug: display all rules in grammars */
-
     /* end with %} */
     if (code[i] == '%' && code[i + 1] == '}') {
 	i += 2;
@@ -91,10 +100,22 @@ grammar_table *parse_scan(const char *code)
     }
     else
 	fprintf(stderr, "error parse_scan: not the end of rules section\n");
-    /* debug begin: print all rules
-    fprintf(stderr, "parse_scan: number of rules: %d\n", grammars->len);
-    for (ptr = grammars->first; ptr != NULL; ptr = ptr->next)
-        fprintf(stderr, "parse_scan: ptr->left: %s\n", ptr->left->value); */
+
+    /* debug begin: print all rules */
+    fprintf(stderr, "parse_scan: grammars-len is %d\n", grammars->len);
+    fprintf(stderr, "******************************************\n");
+    for (ptr2 = grammars->first; ptr2 != NULL; ptr2 = ptr2->next) {
+        fprintf(stderr, "parse_scan: ptr2->left: %s\n", ptr2->left->value);
+	for (ptr3 = ptr2->first; ptr3 != NULL; ptr3 = ptr3->next) {
+	    for (ptr4 = ptr3->first; ptr4 != NULL; ptr4 = ptr4->next)
+		fprintf(stderr, "%s ", ptr4->symbol->value);
+	    fprintf(stderr, "\n");
+	}
+	fprintf(stderr, "******************************************\n");
+    }
+    /* debug begin: print all rules */
+
+    return grammars;
 }
 
 int grammar_define_read(const char *code, register int i, grammar_table *grammars, grammar_symbol_table *grammar_symbols)
@@ -109,11 +130,12 @@ int grammar_define_read(const char *code, register int i, grammar_table *grammar
     i += 2;
     
     /* skip blank characters */
-    while (code[i] == ' ' |
-	   code[i] == '\t' |
-	   code[i] == '\n' |
+    while (code[i] == ' ' ||
+	   code[i] == '\t' ||
+	   code[i] == '\n' ||
 	   code[i] == '\r')
 	i++;
+
     /* debug
     fprintf(stderr, "grammar_define_read: now character is %c\n", code[i]);
     fprintf(stderr, "grammar_define_read: next character is %c\n", code[i + 1]);
@@ -125,6 +147,7 @@ int grammar_define_read(const char *code, register int i, grammar_table *grammar
     /* debug
     for (ptr = grammar_symbols->first; ptr != NULL; ptr = ptr->next)
          fprintf(stderr, "grammar_define_read: current symbol is %s, type is %d\n", ptr->value, ptr->type); */
+
     return i + 2;
 }
 
@@ -155,16 +178,17 @@ int grammar_generator_read(const char *code, register int i, grammar_table *gram
     /* skip blank */
     i = skip_blank(code, i);
 
+    /* skip : */
+    if (code[i] != ':')
+	fprintf(stderr, "error grammar_generator_read: not the start of right generator :, the code is %c\n", code[i]);
+
     /***********************************/
     /* read and install right generator*/
     /***********************************/
 
     /* install right generators */
-    /* debug: skip all right generator */
-    /* 正常应该是read_right_generator()的循环 */
     while (code[i] != ';')
-	i++;
-    /* debug: skip all right generator */
+	i = right_generator_read(code, i, ptr, grammar_symbols);
 
     /* check the last character of a generator and skip it */
     if (code[i] == ';')
@@ -173,7 +197,7 @@ int grammar_generator_read(const char *code, register int i, grammar_table *gram
 	fprintf(stderr, "error grammar_generator_read: invalid end of a generator, the last character is %c", code[i]);
 
     /* install the generator to grammars */
-    generator_install(ptr, grammars); /* undefined */
+    generator_install(ptr, grammars);
 
     /* skip blank */
     i = skip_blank(code, i);
@@ -195,6 +219,7 @@ int grammar_define_install(const char *code, register int i, grammar_symbol_tabl
     grammar_symbol_install(code_strcpy(code, i, j - 1), 
 			   (unsigned int) (code[j + 1] - '0'), 
 			   grammar_symbols); */
+
     j = symbol_recognise(code, i);
     grammar_symbol_install(code_strcpy(code, i, j - 1), 
 			   (unsigned int) (code[j + 1] - '0'), 
@@ -206,9 +231,9 @@ int grammar_define_install(const char *code, register int i, grammar_symbol_tabl
     /* skip the type code */
     j += 2;
 
-    while (code[j] == ' ' |
-	   code[j] == '\t' |
-	   code[j] == '\n' |
+    while (code[j] == ' ' ||
+	   code[j] == '\t' ||
+	   code[j] == '\n' ||
 	   code[j] == '\r')
 	j++;
     return j;
@@ -290,6 +315,7 @@ grammar_symbol *grammar_symbol_create()
     return ptr;
 }
 
+
 generator *grammar_generator_create()
 {
     generator *ptr = 
@@ -326,9 +352,9 @@ grammar_symbol *grammar_symbol_install(char *str, unsigned int type, grammar_sym
 int skip_blank(const char *code, register int i)
 {
     /* skip blank characters */
-    while (code[i] == ' ' |
-	   code[i] == '\t' |
-	   code[i] == '\n' |
+    while (code[i] == ' ' ||
+	   code[i] == '\t' ||
+	   code[i] == '\n' ||
 	   code[i] == '\r')
 	i++;
     return i;
@@ -373,4 +399,114 @@ void generator_install(generator *ptr, grammar_table *grammars)
 	grammars->first = ptr;
     grammars->last = ptr;
     grammars->len++;
+}
+
+int right_generator_read(const char *code, register int i, generator *gen, grammar_symbol_table *grammar_symbols)
+{
+    right_generator *ptr;
+    /* check whether the begin */
+    if (!(code[i] == ':' ||
+	 code[i] == '|'))
+	fprintf(stderr, "error right_generator_read: invalid begin of a right generator: %d %d %d %d\n", code[i - 1], code[i], code[i + 1], i);
+    else
+	i++;
+
+    /* create right generator */
+    ptr = right_generator_create();
+
+    /* skip blank */
+    i = skip_blank(code, i);
+
+    /* check begin of symbol */
+    if (!(code[i] == '<' ||
+	  code[i] == '"'))
+	fprintf(stderr, "error right_generator_read: invalid begin of a generator symbol: %c\n", code[i]);
+
+    /* read generator symbol */
+    while (code[i] == '<' ||
+	   code[i] == '"')
+	i = generator_symbol_read(code, i, ptr, grammar_symbols);
+
+    /* install right_generator */
+    right_generator_install(ptr, gen);
+
+    /* check end of right generator */
+    if (!(code[i] == '|' ||
+	 code[i] == ';'))
+	fprintf(stderr, "error rigth_generator_read: invalid end of a right generator: %c\n", code[i]);
+
+    return i;
+}
+
+right_generator *right_generator_create()
+{
+    right_generator *ptr = 
+	(right_generator *) malloc(sizeof(*ptr));
+    ptr->next = NULL;
+    ptr->first = NULL;
+    ptr->last = NULL;
+    ptr->len = 0;
+    return ptr;
+}
+
+int generator_symbol_read(const char *code, register int i, right_generator *ptr, grammar_symbol_table *symbols)
+{
+    /* check the first symbol */
+    if (!(code[i] == '<' ||
+	  code[i] == '"'))
+	fprintf(stderr, "error generator_symbol_read: not begin of a generator symbol: %c\n", code[i]);
+
+    /* install this symbol */
+    generator_symbol_install(ptr, 
+			     symbol_find(code,
+					 i,
+					 symbol_recognise(code, i) - 1,
+					 symbols));
+
+
+    /* skip current symbol */
+    i = symbol_recognise(code, i);
+
+    /* skip blank */
+    i = skip_blank(code, i);
+
+    return i;
+}
+
+void generator_symbol_install(right_generator *gen, grammar_symbol *sym)
+{
+    generator_symbol *ptr;
+
+    /* check the sym pointer */
+    if (sym == NULL)
+	fprintf(stderr, "error generator_symbol_install: symbol invalid, it's NULL.\n");
+
+    ptr = generator_symbol_create();
+    ptr->symbol = sym;
+    if (gen->len)
+	gen->last->next = ptr;
+    else
+	gen->first = ptr;
+    gen->last = ptr;
+    gen->len += 1;
+}
+
+generator_symbol *generator_symbol_create()
+{
+    generator_symbol *ptr;
+
+    ptr = (generator_symbol *) malloc(sizeof(*ptr));
+    ptr->next = NULL;
+    ptr->symbol = NULL;
+    return ptr;
+}
+
+void right_generator_install(right_generator *ptr, generator *gen)
+{
+    if (gen->len) 
+	gen->last->next = ptr;
+    else
+	gen->first = ptr;
+    gen->last = ptr;
+    gen->len += 1;
 }

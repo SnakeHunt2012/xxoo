@@ -23,8 +23,8 @@ typedef struct generator generator;
 struct generator {
     struct generator *next;
     struct grammar_symbol *left;
-    struct generator_symbol *first;
-    struct generator_symbol *last;
+    struct right_generator *first;
+    struct right_generator *last;
     unsigned int len;
 };
 
@@ -34,7 +34,7 @@ struct generator {
  * - struct generator_symbol *last::最后一个产生式符号：产生式符号结构体指针
  * - unsigned int len::产生式符号总数：整数 */
 typedef struct right_generator right_generator; 
-struct rignt_generator {
+struct right_generator {
     struct right_generator *next;
     struct generator_symbol *first;
     struct generator_symbol *last;
@@ -87,10 +87,15 @@ int skip_blank(const char *, register int);
 
 int grammar_define_read(const char *, register int, grammar_table *, grammar_symbol_table *);
 int grammar_generator_read(const char *, register int, grammar_table *, grammar_symbol_table *);
+int right_generator_read(const char *, register int, generator *, grammar_symbol_table *);
+int generator_symbol_read(const char *, register int, right_generator *ptr, grammar_symbol_table *);
 
 int grammar_define_install(const char *, register int, grammar_symbol_table *);
-void left_generator_install(generator *, grammar_symbol *); /* undefined */
 void generator_install(generator *, grammar_table *);
+void left_generator_install(generator *, grammar_symbol *);
+void right_generator_install(right_generator *, generator *);
+grammar_symbol *grammar_symbol_install(char *, unsigned int, grammar_symbol_table *);
+void generator_symbol_install(right_generator *, grammar_symbol *);
 
 int symbol_recognise(const char *, register int);
 char *code_strcpy(const char *, register int, register int);
@@ -101,5 +106,13 @@ grammar_table *grammar_table_create();
 grammar_symbol_table *grammar_symbol_table_create();
 grammar_symbol *grammar_symbol_create();
 generator *grammar_generator_create();
+right_generator *right_generator_create();
+generator_symbol *generator_symbol_create();
 
-grammar_symbol *grammar_symbol_install(char *, unsigned int, grammar_symbol_table *);
+
+void debug_grammar(void); /* undefined */
+void debug_generator(void); /* undefined */
+void debug_left_generator(void); /* undefined */
+void debug_right_generators(void); /* undefined */
+void debug_generator_symbols(void); /* undefined */
+

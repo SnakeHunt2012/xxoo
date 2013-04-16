@@ -1,5 +1,9 @@
 %{
 	<id>	0
+	"+"	0
+	"*"	0
+	"("	0
+	")"	0
 	<parse_e>	1
 	<parse_t>	1
 	<parse_f>	1
@@ -9,7 +13,7 @@
 	<parse_e> : <parse_e> "+" <parse_t>
 		  | <parse_f>
 		  ;
-		  
+
 	<parse_t> : <parse_e> "*" <parse_f>
 		  | <parse_f>
 		  ;
