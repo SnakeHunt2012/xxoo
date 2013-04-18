@@ -37,7 +37,6 @@ grammar_table *parse_scan(const char *code)
     right_generator *ptr3;
     generator_symbol *ptr4;
     /* debug print all defines and rules */
-    
 
     grammars = grammar_table_create();
 
@@ -114,6 +113,10 @@ grammar_table *parse_scan(const char *code)
 	fprintf(stderr, "******************************************\n");
     }
     /* debug begin: print all rules */
+
+    /* debug */
+    first_debug(grammar_symbols);
+    /* debug */
 
     return grammars;
 }
@@ -204,41 +207,6 @@ int grammar_generator_read(const char *code, register int i, grammar_table *gram
     return i;
 }
 
-int grammar_define_install(const char *code, register int i, grammar_symbol_table *grammar_symbols)
-{
-    register int j;
-    grammar_symbol *ptr;
-
-    j = i;
-
-    /* debug
-    fprintf(stderr, "grammar_define_install: current character is %c\n", code[i]); */
-
-    /* debug
-    j = symbol_recognise(code, i);
-    grammar_symbol_install(code_strcpy(code, i, j - 1), 
-			   (unsigned int) (code[j + 1] - '0'), 
-			   grammar_symbols); */
-
-    j = symbol_recognise(code, i);
-    grammar_symbol_install(code_strcpy(code, i, j - 1), 
-			   (unsigned int) (code[j + 1] - '0'), 
-			   grammar_symbols);
-    /* debug
-    fprintf(stderr, "grammar_define_install: current symbol is %s, type is %d\n",
-            grammar_symbols->last->value, grammar_symbols->last->type); */
-
-    /* skip the type code */
-    j += 2;
-
-    while (code[j] == ' ' ||
-	   code[j] == '\t' ||
-	   code[j] == '\n' ||
-	   code[j] == '\r')
-	j++;
-    return j;
-}
-
 int symbol_recognise(const char *code, register int i)
 {
     int is_terminal;
@@ -283,72 +251,6 @@ char *code_strcpy(const char *code, register int i, register int j)
     return str;
 }
 
-grammar_table *grammar_table_create()
-{
-    grammar_table *grammars = 
-	(grammar_table *) malloc(sizeof(grammar_table));
-    grammars->symbol = NULL;
-    grammars->first = NULL;
-    grammars->last = NULL;
-    grammars->len = 0;
-    return grammars;
-}
-
-grammar_symbol_table *grammar_symbol_table_create()
-{
-    grammar_symbol_table *grammar_symbols = 
-	(grammar_symbol_table *) malloc(sizeof(grammar_symbol_table));
-    grammar_symbols->first = NULL;
-    grammar_symbols->last = NULL;
-    grammar_symbols->len = 0;
-    return grammar_symbols;
-}
-
-grammar_symbol *grammar_symbol_create()
-{
-    grammar_symbol *ptr = 
-	(grammar_symbol *) malloc(sizeof(*ptr));
-    ptr->next = NULL;
-    ptr->id = 0;
-    ptr->type = 0;
-    ptr->value = NULL;
-    return ptr;
-}
-
-
-generator *grammar_generator_create()
-{
-    generator *ptr = 
-	(generator *) malloc(sizeof(*ptr));
-    ptr->next = NULL;
-    ptr->left = NULL;
-    ptr->first = NULL;
-    ptr->last = NULL;
-    return ptr;
-}
-
-grammar_symbol *grammar_symbol_install(char *str, unsigned int type, grammar_symbol_table *list)
-{
-    grammar_symbol *ptr;
-
-    ptr = grammar_symbol_create();
-    ptr->next = NULL;
-    ptr->id = list->len;
-    ptr->type = type;
-    ptr->value = str;
-    if (!list->len)
-	/* set the first */
-	list->first = ptr;
-    else
-	/* set the tail */
-	list->last->next = ptr;
-    /* set the last */
-    list->last = ptr;
-    /* set len */
-    list->len += 1;
-    return ptr;
-}
-
 int skip_blank(const char *code, register int i)
 {
     /* skip blank characters */
@@ -381,24 +283,6 @@ grammar_symbol *symbol_find(const char *code, register int i, register int j, gr
 	if (symbol_match(code, i, j, ptr->value))
 	    break;
     return ptr;
-}
-
-void left_generator_install(generator *gen, grammar_symbol *sym)
-{
-    if (sym == NULL)
-	fprintf(stderr, "error left_generator_install: symbol invalid, it's NULL.\n");
-    else
-	gen->left = sym;
-}
-
-void generator_install(generator *ptr, grammar_table *grammars)
-{
-    if (grammars->len)
-	grammars->last->next = ptr;
-    else
-	grammars->first = ptr;
-    grammars->last = ptr;
-    grammars->len++;
 }
 
 int right_generator_read(const char *code, register int i, generator *gen, grammar_symbol_table *grammar_symbols)
@@ -438,17 +322,6 @@ int right_generator_read(const char *code, register int i, generator *gen, gramm
     return i;
 }
 
-right_generator *right_generator_create()
-{
-    right_generator *ptr = 
-	(right_generator *) malloc(sizeof(*ptr));
-    ptr->next = NULL;
-    ptr->first = NULL;
-    ptr->last = NULL;
-    ptr->len = 0;
-    return ptr;
-}
-
 int generator_symbol_read(const char *code, register int i, right_generator *ptr, grammar_symbol_table *symbols)
 {
     /* check the first symbol */
@@ -473,40 +346,3 @@ int generator_symbol_read(const char *code, register int i, right_generator *ptr
     return i;
 }
 
-void generator_symbol_install(right_generator *gen, grammar_symbol *sym)
-{
-    generator_symbol *ptr;
-
-    /* check the sym pointer */
-    if (sym == NULL)
-	fprintf(stderr, "error generator_symbol_install: symbol invalid, it's NULL.\n");
-
-    ptr = generator_symbol_create();
-    ptr->symbol = sym;
-    if (gen->len)
-	gen->last->next = ptr;
-    else
-	gen->first = ptr;
-    gen->last = ptr;
-    gen->len += 1;
-}
-
-generator_symbol *generator_symbol_create()
-{
-    generator_symbol *ptr;
-
-    ptr = (generator_symbol *) malloc(sizeof(*ptr));
-    ptr->next = NULL;
-    ptr->symbol = NULL;
-    return ptr;
-}
-
-void right_generator_install(right_generator *ptr, generator *gen)
-{
-    if (gen->len) 
-	gen->last->next = ptr;
-    else
-	gen->first = ptr;
-    gen->last = ptr;
-    gen->len += 1;
-}
