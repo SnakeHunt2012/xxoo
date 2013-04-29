@@ -64,12 +64,14 @@ struct grammar_symbol_table {
 
 /* grammar_symbol::语法符号（结构体）
  * - struct grammar_symbol *next::下一语法符号：语法符号结构体指针
+ * - struct first_set *first::对应的first集
  * - unsigned int id::符号id：整数（按照语法符号表顺序分配）
  * - unsigned int type::语法符号类型：整数（宏定义，终结附/非终结符）
  * - char *value::语法符号内容：字符串指针 */
 typedef struct grammar_symbol grammar_symbol;
 struct grammar_symbol {
     struct grammar_symbol *next;
+    struct first_set *first;
     unsigned int id;
     unsigned int type;
     char *value;
@@ -136,6 +138,23 @@ struct first_set {
     char have_null;
 };
 
+/* first_queue_member::求first集用到的队列的队列成员
+ * first_queue_member *next::下一个队列成员
+ * grammar_symbol *symbol::成员所指向的非终结符 */
+typedef struct first_queue_member first_queue_member;
+struct first_queue_member {
+    first_queue_member *next;
+    grammar_symbol *symbol;
+};
+
+/* first_queue::求first集用到的队列
+ * first_queue_member *head::队首
+ * first_queue_member *tail::队尾 */
+typedef struct first_queue first_queue;
+struct first_queue {
+    first_queue_member *head;
+    first_queue_member *tail;
+};
 
 char parse_code[MAX];
 unsigned int parse_code_len;
@@ -195,3 +214,5 @@ void first_set_debug(first_set *);
 /* first.c */
 first_set *first_pack(grammar_symbol *);
 first_set *first_merge(first_set *, first_set *);
+void *first(grammar_symbol *, grammar_table *);
+void first_drive(grammar_symbol_table *, grammar_table *);

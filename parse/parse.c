@@ -115,7 +115,7 @@ grammar_table *parse_scan(const char *code)
     /* debug begin: print all rules */
 
     /* debug */
-    first_debug(grammar_symbols);
+    first_drive(grammar_symbols, grammars);
     /* debug */
 
     return grammars;

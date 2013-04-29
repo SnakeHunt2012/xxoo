@@ -7,6 +7,8 @@
 	<parse_e>	1
 	<parse_t>	1
 	<parse_f>	1
+	"$"	2
+	"epsilon"	3
 %}
 
 %{
@@ -20,5 +22,6 @@
 
 	<parse_f> : "(" <parse_e> ")"
 		  | <id>
+		  | "epsilon"
 		  ;
 %}

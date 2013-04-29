@@ -29,6 +29,7 @@ grammar_symbol *grammar_symbol_create()
     grammar_symbol *ptr = 
 	(grammar_symbol *) malloc(sizeof(*ptr));
     ptr->next = NULL;
+    ptr->first = NULL;
     ptr->id = 0;
     ptr->type = 0;
     ptr->value = NULL;
